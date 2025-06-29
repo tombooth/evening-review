@@ -37,7 +37,7 @@ def create_epub(articles: Iterable[Scraped], output_path: str) -> None:
                 f'<body>\n'
                 f'<h1>{escape(scraped.article.title)}</h1>\n'
                 f'<p><a href="index.xhtml">Back to index</a></p>\n'
-                f'{scraped.html}\n'
+                f'{scraped.text}\n'
                 f'<p><a href="index.xhtml">Back to index</a></p>\n'
                 f'</body>\n'
                 f'</html>'
