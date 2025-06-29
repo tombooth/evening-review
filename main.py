@@ -4,6 +4,8 @@ import time
 from dataclasses import dataclass
 from typing import Iterable, List
 
+import trafilatura
+
 import requests
 
 from guardian import get_guardian_articles, Article
@@ -29,6 +31,12 @@ class Scraped:
 
     article: Article
     html: str
+
+    def text(self) -> str:
+        """Return ``self.html`` converted to plain text using Trafilatura."""
+
+        extracted = trafilatura.extract(self.html)
+        return extracted or ""
 
 
 def fetch_articles_html(articles: Iterable[Article], use_archive: bool = False) -> List[Scraped]:
