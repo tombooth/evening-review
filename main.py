@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Iterable, List
 
+from tqdm import tqdm
+
 
 import requests
 
@@ -34,8 +36,9 @@ def fetch_articles_html(articles: Iterable[Article], use_archive: bool = False) 
     between requests so that we behave politely towards the target servers.
     """
 
+    article_list = list(articles)
     result: list[Scraped] = []
-    for article in articles:
+    for article in tqdm(article_list, desc="fetching", unit="article"):
         if use_archive:
             html = fetch_archive_html(article.url)
         else:
