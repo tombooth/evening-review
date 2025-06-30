@@ -10,6 +10,7 @@ dependencies = [
     "trafilatura>=2.0.0",
     "tqdm>=4.66.4",
     "ebooklib>=0.19",
+    "Pillow>=11.2.1",
 ]
 
 [dependency-groups]
