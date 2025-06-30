@@ -1,6 +1,8 @@
 import pytest
 import requests
 
+from cache import set_db_path
+
 from archiver import fetch_archive_html
 
 
@@ -12,6 +14,13 @@ class DummyResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             raise requests.HTTPError(f"{self.status_code} error")
+
+
+@pytest.fixture(autouse=True)
+def temp_cache(tmp_path):
+    cache_file = tmp_path / "cache.db"
+    set_db_path(str(cache_file))
+    yield
 
 
 def test_fetch_archive_html_encodes_url(monkeypatch):
@@ -48,3 +57,21 @@ def test_fetch_archive_html_requires_content(monkeypatch):
 
     with pytest.raises(ValueError):
         fetch_archive_html('https://example.com')
+
+
+def test_fetch_archive_html_caches(monkeypatch):
+    calls = []
+
+    def fake_get(url, timeout=10):
+        calls.append(url)
+        html = '<html><div id="CONTENT"><p>OK</p></div></html>'
+        return DummyResponse(html)
+
+    monkeypatch.setattr(requests, 'get', fake_get)
+
+    first = fetch_archive_html('https://example.com')
+    second = fetch_archive_html('https://example.com')
+
+    assert first == '<p>OK</p>'
+    assert second == '<p>OK</p>'
+    assert len(calls) == 1

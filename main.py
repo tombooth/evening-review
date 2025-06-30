@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 from typing import Iterable, List
 
+from cache import get_html as cache_get_html, store_html as cache_store_html
+
 from tqdm import tqdm
 
 
@@ -22,9 +24,14 @@ REQUEST_DELAY = 1.0  # seconds
 
 def fetch_html(url: str) -> str:
     """Fetch ``url`` returning the raw HTML text."""
+    cached = cache_get_html(url)
+    if cached is not None:
+        return cached
     response = requests.get(url, headers=HEADERS, timeout=10)
     response.raise_for_status()
-    return response.text
+    html = response.text
+    cache_store_html(url, html)
+    return html
 
 
 def fetch_articles_html(articles: Iterable[Article], use_archive: bool = False) -> List[Scraped]:

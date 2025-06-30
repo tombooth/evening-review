@@ -6,6 +6,7 @@ import urllib.parse
 
 import requests
 from bs4 import BeautifulSoup
+from cache import get_html as cache_get_html, store_html as cache_store_html
 
 
 def fetch_archive_html(url: str) -> str:
@@ -15,6 +16,10 @@ def fetch_archive_html(url: str) -> str:
     and returns the HTML from within ``div#CONTENT`` of the resulting page.
     ``url`` is URL encoded before it is appended to the archive endpoint.
     """
+
+    cached = cache_get_html(url)
+    if cached is not None:
+        return cached
 
     encoded = urllib.parse.quote(url, safe="")
     archive_url = f"http://archive.is/newest/{encoded}"
@@ -26,4 +31,6 @@ def fetch_archive_html(url: str) -> str:
     if container is None:
         raise ValueError("CONTENT not found in archive page")
 
-    return container.decode_contents()
+    html = container.decode_contents()
+    cache_store_html(url, html)
+    return html
