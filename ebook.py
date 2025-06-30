@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import datetime
 import uuid
-import zipfile
 from collections import defaultdict
 from html import escape
 from typing import Iterable
+
+from ebooklib import epub
 
 from models import Scraped
 
@@ -16,79 +17,48 @@ def create_epub(articles: Iterable[Scraped], output_path: str) -> None:
     for article in articles:
         grouped[article.article.section].append(article)
 
-    index_lines = [
-        '<html xmlns="http://www.w3.org/1999/xhtml">',
-        '<head><title>Evening Review</title></head>',
-        '<body>',
-        '<h1>Evening Review</h1>',
-    ]
+    book = epub.EpubBook()
+    book.set_identifier(str(uuid.uuid4()))
+    book.set_title("Evening Review")
+    book.set_language("en")
 
-    article_files: list[tuple[str, str, str]] = []  # (id, filename, html)
+    nav_items: list[epub.Link] = []
+    spine: list = ["nav"]
+
+    index_lines = ["<h1>Evening Review</h1>"]
+
     counter = 0
     for section in sorted(grouped):
-        index_lines.append(f'<h2>{escape(section)}</h2>')
-        index_lines.append('<ul>')
+        index_lines.append(f"<h2>{escape(section)}</h2>")
+        index_lines.append("<ul>")
         for scraped in grouped[section]:
             aid = f"a{counter}"
             fname = f"{aid}.xhtml"
-            article_html = (
-                f'<html xmlns="http://www.w3.org/1999/xhtml">\n'
-                f'<head><title>{escape(scraped.article.title)}</title></head>\n'
-                f'<body>\n'
-                f'<h1>{escape(scraped.article.title)}</h1>\n'
-                f'<p><a href="index.xhtml">Back to index</a></p>\n'
-                f'{scraped.text}\n'
-                f'<p><a href="index.xhtml">Back to index</a></p>\n'
-                f'</body>\n'
-                f'</html>'
+
+            chapter = epub.EpubHtml(title=scraped.article.title, file_name=fname, lang="en")
+            chapter.content = (
+                f"<h1>{escape(scraped.article.title)}</h1>"
+                f'<p><a href="index.xhtml">Back to index</a></p>'
+                f"{scraped.text}"
+                f'<p><a href="index.xhtml">Back to index</a></p>'
             )
-            article_files.append((aid, fname, article_html))
+            book.add_item(chapter)
+            nav_items.append(epub.Link(fname, scraped.article.title, aid))
+            spine.append(chapter)
             index_lines.append(f'<li><a href="{fname}">{escape(scraped.article.title)}</a></li>')
             counter += 1
-        index_lines.append('</ul>')
+        index_lines.append("</ul>")
 
-    index_lines.append('</body></html>')
-    index_html = "\n".join(index_lines)
+    index_content = "\n".join(index_lines)
+    index = epub.EpubHtml(title="Index", file_name="index.xhtml", lang="en")
+    index.content = index_content
+    book.add_item(index)
 
-    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
-    book_id = uuid.uuid4()
+    book.toc = nav_items
+    book.add_item(epub.EpubNav())
+    book.add_item(epub.EpubNcx())
 
-    manifest = [
-        '<item id="index" href="index.xhtml" media-type="application/xhtml+xml" properties="nav"/>'
-    ]
-    spine = ['<itemref idref="index"/>']
-    for aid, fname, _ in article_files:
-        manifest.append(f'<item id="{aid}" href="{fname}" media-type="application/xhtml+xml"/>')
-        spine.append(f'<itemref idref="{aid}"/>')
+    spine.insert(1, index)
+    book.spine = spine
 
-    content_opf = f'''<?xml version="1.0" encoding="utf-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="BookId">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="BookId">urn:uuid:{book_id}</dc:identifier>
-    <dc:title>Evening Review</dc:title>
-    <meta property="dcterms:modified">{now}</meta>
-  </metadata>
-  <manifest>
-    {'\n    '.join(manifest)}
-  </manifest>
-  <spine>
-    {'\n    '.join(spine)}
-  </spine>
-</package>
-'''
-
-    container_xml = '''<?xml version="1.0" encoding="UTF-8"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles>
-    <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
-  </rootfiles>
-</container>
-'''
-
-    with zipfile.ZipFile(output_path, 'w') as zf:
-        zf.writestr('mimetype', 'application/epub+zip', compress_type=zipfile.ZIP_STORED)
-        zf.writestr('META-INF/container.xml', container_xml)
-        zf.writestr('index.xhtml', index_html)
-        for _, fname, html in article_files:
-            zf.writestr(fname, html)
-        zf.writestr('content.opf', content_opf)
+    epub.write_epub(output_path, book)

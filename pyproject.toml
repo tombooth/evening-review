@@ -9,6 +9,7 @@ dependencies = [
     "beautifulsoup4>=4.13.4",
     "trafilatura>=2.0.0",
     "tqdm>=4.66.4",
+    "ebooklib>=0.19",
 ]
 
 [dependency-groups]
